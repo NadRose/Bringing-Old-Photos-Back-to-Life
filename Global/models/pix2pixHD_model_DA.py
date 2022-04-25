@@ -191,6 +191,8 @@ class Pix2PixHDModel(BaseModel):
             else:
                 syn_feat.append(hiddens[index].unsqueeze(0))
         L=min(len(real_old_feat),len(syn_feat))
+        if L == 0:
+            return None, None
         real_old_feat=real_old_feat[:L]
         syn_feat=syn_feat[:L]
         real_old_feat=torch.cat(real_old_feat,0)
