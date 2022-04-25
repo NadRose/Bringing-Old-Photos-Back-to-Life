@@ -46,9 +46,14 @@ else:
 
 # opt.which_epoch=start_epoch-1
 model = create_model(opt)
+model = model.to("cuda")
+
+
 fd = open(path, 'w')
-fd.write(str(model.module.netG))
-fd.write(str(model.module.netD))
+fd.write(str(model.netG))
+fd.write(str(model.netD))
+#fd.write(str(model.module.netG))
+#fd.write(str(model.module.netD))
 fd.close()
 
 total_steps = (start_epoch-1) * dataset_size + epoch_iter
@@ -58,10 +63,15 @@ print_delta = total_steps % opt.print_freq
 save_delta = total_steps % opt.save_latest_freq
 
 for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
+    if epoch > 100:
+        break
     epoch_start_time = time.time()
     if epoch != start_epoch:
         epoch_iter = epoch_iter % dataset_size
     for i, data in enumerate(dataset, start=epoch_iter):
+        # finish epoch after 50 iterations for test purposes
+        if i > 5000:
+            break
         iter_start_time = time.time()
         total_steps += opt.batchSize
         epoch_iter += opt.batchSize
@@ -70,12 +80,20 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
         save_fake = total_steps % opt.display_freq == display_delta
 
         ############## Forward Pass ######################
+        # model.to("cuda")
         losses, generated = model(Variable(data['label']), Variable(data['inst']), 
-            Variable(data['image']), Variable(data['feat']), infer=save_fake)
+                                  Variable(data['image']), Variable(data['feat']), infer=save_fake)
+
+        if losses is None:
+            print("="*80)
+            print("Skipped iteration")
+            print("=" * 80)
+            continue
 
         # sum per device losses
         losses = [ torch.mean(x) if not isinstance(x, int) else x for x in losses ]
-        loss_dict = dict(zip(model.module.loss_names, losses))
+        # loss_dict = dict(zip(model.module.loss_names, losses))
+        loss_dict = dict(zip(model.loss_names, losses))
 
 
         # calculate final loss scalar
@@ -85,14 +103,14 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
 
         ############### Backward Pass ####################
         # update generator weights
-        model.module.optimizer_G.zero_grad()
+        model.optimizer_G.zero_grad()
         loss_G.backward()
-        model.module.optimizer_G.step()
+        model.optimizer_G.step()
 
         # update discriminator weights
-        model.module.optimizer_D.zero_grad()
+        model.optimizer_D.zero_grad()
         loss_D.backward()
-        model.module.optimizer_D.step()
+        model.optimizer_D.step()
 
         #call(["nvidia-smi", "--format=csv", "--query-gpu=memory.used,memory.free"]) 
 
@@ -101,7 +119,7 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
         if total_steps % opt.print_freq == print_delta:
             errors = {k: v.data if not isinstance(v, int) else v for k, v in loss_dict.items()}
             t = (time.time() - iter_start_time) / opt.batchSize
-            visualizer.print_current_errors(epoch, epoch_iter, errors, t, model.module.old_lr)
+            visualizer.print_current_errors(epoch, epoch_iter, errors, t, model.old_lr)
             visualizer.plot_current_errors(errors, total_steps)
 
         ### display output images
@@ -131,15 +149,15 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
     ### save model for this epoch
     if epoch % opt.save_epoch_freq == 0:
         print('saving the model at the end of epoch %d, iters %d' % (epoch, total_steps))        
-        model.module.save('latest')
-        model.module.save(epoch)
+        model.save('latest')
+        model.save(epoch)
         np.savetxt(iter_path, (epoch+1, 0), delimiter=',', fmt='%d')
 
     ### instead of only training the local enhancer, train the entire network after certain iterations
     if (opt.niter_fix_global != 0) and (epoch == opt.niter_fix_global):
-        model.module.update_fixed_params()
+        model.update_fixed_params()
 
     ### linearly decay learning rate after certain iterations
     if epoch > opt.niter:
-        model.module.update_learning_rate()
+        model.update_learning_rate()
 
