@@ -118,5 +118,5 @@ class BaseModel(torch.nn.Module):
                     print(sorted(not_initialized))
                     network.load_state_dict(model_dict)
 
-    def update_learning_rate():
+    def update_learning_rate(self):
         pass
