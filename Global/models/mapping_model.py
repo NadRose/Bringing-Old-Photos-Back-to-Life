@@ -320,6 +320,12 @@ class Pix2PixHDModel_Mapping(BaseModel):
 
 
         return [ self.loss_filter(loss_feat_l2, loss_G_GAN, loss_G_GAN_Feat, loss_G_VGG, loss_D_real, loss_D_fake,smooth_l1_loss,loss_feat_l2_stage_1), None if not infer else fake_image ]
+    
+    def save(self, which_epoch):
+        self.save_network(self.netD, 'D', which_epoch, self.gpu_ids)
+        self.save_network(self.mapping_net, 'mapping_net', which_epoch, self.gpu_ids)
+        self.save_optimizer(self.optimizer_D, "D", which_epoch)
+        self.save_optimizer(self.optimizer_mapping, "mapping_net", which_epoch)
 
 
     def inference(self, label, inst):
